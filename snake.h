@@ -6,6 +6,7 @@
 #define SCREEN_HEIGHT 480
 #define SIZE 10
 
+
 enum direction {
     UP,
     DOWN,
@@ -38,6 +39,7 @@ typedef struct {
     Food *food;
     SDL_Renderer *renderer;
     SDL_Window *window;
+    int gameState;
 } Game;
 
 #endif

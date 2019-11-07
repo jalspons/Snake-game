@@ -121,17 +121,56 @@ int processEvents(Game *game)
                     SDL_DestroyWindow(game->window);
                     game->window = NULL;
                 }
+                break;
             }
-            break;
             case SDL_QUIT:
             {
                 // Quit out of the game
                 done = 1;
                 break;
             }
+            case SDL_KEYDOWN:
+            {
+                switch(event.key.keysym.sym)
+                {
+                    case SDLK_UP:
+                    {
+                        if (snake->dir != DOWN) {
+                            snake->dir = UP;
+                        }
+                        break;
+                    }
+                    case SDLK_DOWN:
+                    {
+                        if (snake->dir != UP) {
+                            snake->dir = DOWN;
+                        }
+                        break;
+                    }
+                    case SDLK_LEFT:
+                    {
+                        if (snake->dir != RIGHT) {
+                            snake->dir = LEFT;
+                        }
+                        break;
+                    }
+                    case SDLK_RIGHT:
+                    {
+                        if (snake->dir != LEFT) {
+                            snake->dir = RIGHT;
+                        }
+                        break;
+                    }
+                    case SDLK_ESCAPE:
+                    {
+                        done = 1;
+                        break;
+                    }
+                }
+            }
         }
     }
-    
+ /*   
     const uint8_t *state = SDL_GetKeyboardState(NULL);
     if (state[SDL_SCANCODE_RIGHT]) {
         if (snake->dir != LEFT) {
@@ -139,9 +178,7 @@ int processEvents(Game *game)
         }
     }
     if (state[SDL_SCANCODE_UP]) {
-        if (snake->dir != DOWN) {
-            snake->dir = UP;
-        }
+        
     }
     if (state[SDL_SCANCODE_LEFT]) {
         if (snake->dir != RIGHT) {
@@ -156,6 +193,7 @@ int processEvents(Game *game)
     if (state[SDL_SCANCODE_ESCAPE]) {
         done = 1;
     }
+    */
     
     return done;
 }
