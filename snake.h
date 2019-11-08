@@ -4,7 +4,8 @@
 
 #define SCREEN_WIDTH 640
 #define SCREEN_HEIGHT 480
-#define SIZE 10
+#define SIZE 20
+#define LABEL_TEXTLEN 20
 
 
 enum direction {
@@ -12,6 +13,30 @@ enum direction {
     DOWN,
     LEFT,
     RIGHT
+};
+
+enum gameStatus {
+    GAME_OVER,
+    GAME_PAUSED,
+    GAME_NEW,
+    GAME_RUNNING,
+    GAME_EXIT,
+
+    GAME_TOGGLE_WALL,
+    GAME_RESTART
+};
+
+enum menuStatus {
+    PLAY,
+    QUIT,
+    TOGGLE_WALL,
+    MENU_STATUSES
+};
+
+enum menuButtonAction {
+    PAUSE_MENU,
+    START_MENU,
+    GAME_OVER_MENU
 };
 
 struct Tail {
@@ -35,11 +60,25 @@ typedef struct {
 } Ledge;
 
 typedef struct {
+    Ledge *wall;
+    int numOfLedges;
+} Wall;
+
+typedef struct {
+    SDL_MessageBoxData *mBox;
+    SDL_MessageBoxButtonData **buttons;
+} Menu;
+
+typedef struct {
     Snake *snake;
     Food *food;
+    Wall *border;
     SDL_Renderer *renderer;
     SDL_Window *window;
-    int gameState;
+    SDL_MessageBoxData *pauseMenu;
+    enum gameStatus gameState;
+    enum menuStatus menuState;
+    int exitStatus, useWall;
 } Game;
 
 #endif
