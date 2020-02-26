@@ -1,22 +1,22 @@
 # OBJS specifies which files to compile as part of the project
-OBJS = snake.c
+SRC = snake.c
 
 # CC specifies which compiler we're using
 CC = gcc
 
 # COMPILER_FLAGS specifies the additinal compilation options we're using
 # -w suppresses all warnings
-COMPILER_FLAGS = -w
+COMPILER_FLAGS = -w -Wall -Werror `sdl2-config --cflags`
 
 # LINKER_FLAGS specifies the libraries we're linking against
-LINKER_FLAGS = -lSDL2
+LINKER_FLAGS = `sdl2-config --libs` -lSDL2_ttf
 
 # OBJ_NAME specifies the name of our executable
-OBJ_NAME = snake
+TARGET = snake
 
 # This is the target that compiles our executable
-all : $(OBJS)
-	$(CC) $(OBJS) $(COMPILER_FLAGS) $(LINKER_FLAGS) -o $(OBJ_NAME)
+all : $(SRC)
+	$(CC) $(SRC) $(COMPILER_FLAGS) $(LINKER_FLAGS) -o $(TARGET)
 
 clean :
-	rm -rf $(OBJ_NAME)
+	rm -rf $(TARGET)

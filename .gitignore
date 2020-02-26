@@ -4,3 +4,8 @@
 
 # executables
 snake
+
+
+# Valgrind
+
+vgcore.*

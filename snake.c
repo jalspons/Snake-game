@@ -1,12 +1,27 @@
 #include <SDL2/SDL.h>
+#include <SDL2/SDL_ttf.h>
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "snake.h"
 
 
+int loadFont(Game *game)
+{
+    //Open the font
+    game->gFont = TTF_OpenFont(MENU_FONT, MENU_FONT_SIZE);
+    if( game->gFont == NULL )
+    {
+        printf( "Failed to load lazy font! SDL_ttf Error: %s\n", TTF_GetError() );
+        return -1;
+    }
+    
+    return 0;
+}
+
 void loadGameObjects(Game *game)
 {
+    // Create snake
     Snake *snake = (Snake *)calloc(1, sizeof(Snake));
     snake->x = SCREEN_WIDTH / 2,       // X position
     snake->y = SCREEN_HEIGHT / 2,      // Y position
@@ -14,6 +29,7 @@ void loadGameObjects(Game *game)
     snake->next = NULL;
     snake->last = NULL;
 
+    // Create food
     Food *food = (Food *)calloc(1, sizeof(Food));
     food->x = SCREEN_WIDTH / 4;
     food->y = SCREEN_HEIGHT / 4;
@@ -24,14 +40,13 @@ void loadGameObjects(Game *game)
 
 void destroyGameObjects(Game *game)
 {
-    printf("Tuhoa\n");
     // Destroy Snake
-    for (Tail *tail = game->snake->next; tail != NULL; tail = tail->next)
+    for(Tail *tail = game->snake->next; tail != NULL; )
     {
-        printf("Hanta tuhottu\n");
+        Tail *next = tail->next;
         free(tail);
+        tail = next;
     }
-    
     free(game->snake);
 
     // Destroy food
@@ -53,7 +68,7 @@ void createBorder(Game *game)
     int nx = SCREEN_WIDTH / SIZE;
     for (unsigned int i = 0; i < nx; ++i)  
     {
-        // Upper side
+        // Top side
         border->wall[2*i].x = i * SIZE;      
         border->wall[2*i].y = 0;
         // Bottom side
@@ -172,7 +187,9 @@ void createPauseMenu(Game *game)
     // Allocate memory for menu structures
     SDL_MessageBoxData *menu = calloc(1, sizeof(SDL_MessageBoxData));
     SDL_MessageBoxButtonData *buttons = calloc(nButtons, sizeof(SDL_MessageBoxButtonData));
-    
+    Menu *pausemenu = calloc(1, sizeof(Menu));
+    pausemenu->menuButtonColors = SDL_AllocPalette(NCOLORS);
+
     // Button labels
     const char title[] = "Game Menu";
     const char message[] = "Play or Quit?";
@@ -209,21 +226,38 @@ void createPauseMenu(Game *game)
     menu->buttons = buttons;
     menu->colorScheme = NULL;
     menu->flags = SDL_MESSAGEBOX_INFORMATION;
+    
+    // Textures for menu buttons
+    pausemenu->mBox = menu;
+    pausemenu->buttons = buttons;
+    pausemenu->menuState = PLAY;
 
-    game->pauseMenu = menu;
+    SDL_Color colors[NCOLORS] = {
+        COLOR_FONT,
+        COLOR_ACTIVE,
+        COLOR_INACTIVE,
+        COLOR_BG
+    };
+
+    SDL_SetPaletteColors(pausemenu->menuButtonColors,
+    colors, 0, NCOLORS);
+    
+    //printf("Color1 %d", pausemenu->menuButtonColors->colors[0].r);
+
+    game->menu = pausemenu;
 }
 
 void destroyPauseMenu(Game *game)
 {
-    free(game->pauseMenu->title);
-    free(game->pauseMenu->message);
-
-    free(game->pauseMenu->buttons[0].text);
-    free(game->pauseMenu->buttons[1].text);
-    free(game->pauseMenu->buttons[2].text);
+    Menu *menu = game->menu;
     
-    free(game->pauseMenu->buttons);
-    free(game->pauseMenu);
+    free(menu->mBox->title);
+    free(menu->mBox->message);
+    free(menu->buttons[0].text);
+    free(menu->buttons[1].text);
+    free(menu->buttons[2].text);
+    free(menu->buttons);
+    free(menu);
 }
 
 void destroyGame(Game *game)
@@ -236,10 +270,6 @@ void destroyGame(Game *game)
     
     // Free memory used by menu
     destroyPauseMenu(game);
-
-    // Destroy window and renderer
-    SDL_DestroyWindow(game->window);
-    SDL_DestroyRenderer(game->renderer);
 }
 
 int collision(int x1, int y1, int s1, int x2, int y2, int s2)
@@ -313,7 +343,6 @@ void moveSnake(Game *game)
         new->x = prev_x;
         new->y = prev_y;
         new->next = NULL;
-        printf("New tail piece\n");
 
         if (snake->next == NULL) {
             snake->next = new;
@@ -333,6 +362,7 @@ void processEvents(Game *game)
 {
     SDL_Event event;
     Snake *snake = game->snake;
+    Menu *menu = game->menu;
     
     while (SDL_PollEvent(&event))
     {
@@ -365,6 +395,7 @@ void processEvents(Game *game)
                 {
                     if (snake->dir != DOWN) {
                         snake->dir = UP;
+                        return;
                     }
                     break;
                 }
@@ -372,6 +403,7 @@ void processEvents(Game *game)
                 {
                     if (snake->dir != UP) {
                         snake->dir = DOWN;
+                        return;
                     }
                     break;
                 }
@@ -379,6 +411,7 @@ void processEvents(Game *game)
                 {
                     if (snake->dir != RIGHT) {
                         snake->dir = LEFT;
+                        return;
                     }
                     break;
                 }
@@ -386,6 +419,7 @@ void processEvents(Game *game)
                 {
                     if (snake->dir != LEFT) {
                         snake->dir = RIGHT;
+                        return;
                     }
                     break;
                 }
@@ -404,17 +438,19 @@ void processEvents(Game *game)
                 {
                 case SDLK_UP:
                 {
-                    game->menuState = (MENU_STATUSES + (game->menuState - 1)) % MENU_STATUSES;
+                    // If the menu goes below bounds, return to bottom
+                    menu->menuState = (STATES_LENGTH + (menu->menuState - 1)) % STATES_LENGTH;
                     break;
                 }
                 case SDLK_DOWN:
                 {
-                    game->menuState = (game->menuState + 1) % MENU_STATUSES;
+                    // If the menu goes above bounds, return to top
+                    menu->menuState = (menu->menuState + 1) % STATES_LENGTH;
                     break;
                 }
                 case SDLK_RETURN:
                 {
-                    switch(game->menuState)
+                    switch(menu->menuState)
                     {
                     case PLAY:
                     {
@@ -470,50 +506,65 @@ void processEvents(Game *game)
     */
 }
 
+SDL_Surface *createTextSurface(Game *game, const char *str, enum menuStatus status)
+{
+    SDL_Color *colors = game->menu->menuButtonColors->colors;
+
+    if (status == game->menu->menuState)
+    {
+        return TTF_RenderText_Shaded(game->gFont, str, colors[0], colors[1]);
+    } else {
+        return TTF_RenderText_Shaded(game->gFont, str, colors[0], colors[2]);
+    }
+}
+
+
+SDL_Texture *createMenuTextures(Game *game, const char **str)
+{
+    if (game->gameState)
+    {
+        
+    }
+}
+
 void renderMenu(Game *game)
 {
     SDL_Renderer *renderer = game->renderer;
-    int button_sx = 80;
-    int button_sy = 20;
     int margin_bottom = 80;
     int spacing = 40;
+    Menu *menu = game->menu;
 
     SDL_SetRenderDrawColor(renderer, 50, 50, 50, 50);
 
+    SDL_Surface *playButtonSurface = createTextSurface(game, "PLAY", PLAY);
+    SDL_Surface *quitButtonSurface = createTextSurface(game, "QUIT", QUIT);
+    SDL_Surface *wallButtonSurface = createTextSurface(game, "TOGGLE WALL", TOGGLE_WALL);
+
+    int w = MAX(playButtonSurface->w, MAX(quitButtonSurface->w, wallButtonSurface->w));
+    int h = MAX(playButtonSurface->h, MAX(quitButtonSurface->h, wallButtonSurface->h));
+
+    SDL_Texture *playButtonTexture = SDL_CreateTextureFromSurface(game->renderer, playButtonSurface);
+    SDL_Texture *quitButtonTexture = SDL_CreateTextureFromSurface(game->renderer, quitButtonSurface);
+    SDL_Texture *wallButtonTexture = SDL_CreateTextureFromSurface(game->renderer, wallButtonSurface);
+
     // Play button
     unsigned int y_pos = margin_bottom;
-    SDL_Rect playBox = { (SCREEN_WIDTH - button_sx) / 2, y_pos, button_sx, button_sy };
-    SDL_RenderFillRect(renderer, &playBox);
+    SDL_Rect playBox = { (SCREEN_WIDTH - w) / 2, y_pos, w, h };
+    SDL_RenderCopy(renderer, playButtonTexture, NULL, &playBox);
 
     // Quit Button
-    y_pos += button_sy + spacing;
-    SDL_Rect cancelBox = { (SCREEN_WIDTH - button_sx) / 2, y_pos , button_sx, button_sy };
-    SDL_RenderFillRect(renderer, &cancelBox);
+    y_pos += h + spacing;
+    SDL_Rect quitBox = { (SCREEN_WIDTH - w) / 2, y_pos , w, h };
+    SDL_RenderCopy(renderer, quitButtonTexture, NULL, &quitBox);
 
     // Toggle Wall button
-    y_pos += button_sy + spacing;
-    SDL_Rect toggleWallBox = { (SCREEN_WIDTH - button_sx) / 2, y_pos , button_sx, button_sy };
-    SDL_RenderFillRect(renderer, &toggleWallBox);
+    y_pos += h + spacing;
+    SDL_Rect wallBox = { (SCREEN_WIDTH - w) / 2, y_pos , w, h };
+    SDL_RenderCopy(renderer, wallButtonTexture, NULL, &wallBox);
 
-    SDL_SetRenderDrawColor(renderer, 200, 200, 200, 50);
-    switch(game->menuState)
-    {
-        case PLAY:
-        {
-            SDL_RenderFillRect(renderer, &playBox);
-            break;
-        }
-        case QUIT:
-        {
-            SDL_RenderFillRect(renderer, &cancelBox);
-            break;
-        }
-        case TOGGLE_WALL:
-        {
-            SDL_RenderFillRect(renderer, &toggleWallBox);
-            break;
-        }
-    }
+    SDL_FreeSurface(playButtonSurface);
+    SDL_FreeSurface(quitButtonSurface);
+    SDL_FreeSurface(wallButtonSurface);
 }
 
 void renderGame(Game *game)
@@ -585,6 +636,12 @@ int main( int argc, char *argv[] )
     SDL_Window *window;
 
     SDL_Init( SDL_INIT_VIDEO );
+    if( TTF_Init() == -1 )
+    {
+        printf( "SDL_ttf could not initialize! SDL_ttf Error: %s\n", TTF_GetError() );
+        game.gameState = GAME_EXIT;
+    }
+
     window = SDL_CreateWindow("Game Window",            // Window title
                             SDL_WINDOWPOS_UNDEFINED,    // Initial x position
                             SDL_WINDOWPOS_UNDEFINED,    // Initial y position
@@ -602,8 +659,8 @@ int main( int argc, char *argv[] )
     game.gameState = GAME_NEW;
     game.exitStatus = 0;
     game.useWall = 0;
-    game.menuState = QUIT;
 
+    loadFont(&game);
     createPauseMenu(&game);
     loadGameObjects(&game);
     createBorder(&game);
@@ -629,7 +686,16 @@ int main( int argc, char *argv[] )
     
     destroyGame(&game);
 
+    //Free global font
+    TTF_CloseFont( game.gFont );
+
+    // Destroy window and renderer
+    SDL_DestroyWindow(window);
+    SDL_DestroyRenderer(renderer);
+
+    TTF_Quit();
     SDL_Quit();
+    
 
     return 0;
 }
