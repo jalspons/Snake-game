@@ -9,7 +9,7 @@
 int loadFont(Game *game)
 {
     //Open the font
-    game->gFont = TTF_OpenFont(MENU_FONT, MENU_FONT_SIZE);
+    game->gFont = TTF_OpenFont(font, font_size);
     if( game->gFont == NULL )
     {
         printf( "Failed to load lazy font! SDL_ttf Error: %s\n", TTF_GetError() );
@@ -23,16 +23,16 @@ void loadGameObjects(Game *game)
 {
     // Create snake
     Snake *snake = (Snake *)calloc(1, sizeof(Snake));
-    snake->x = SCREEN_WIDTH / 2,       // X position
-    snake->y = SCREEN_HEIGHT / 2,      // Y position
+    snake->x = screen_width / 2,       // X position
+    snake->y = screen_height / 2,      // Y position
     snake->dir = DOWN;
     snake->next = NULL;
     snake->last = NULL;
 
     // Create food
     Food *food = (Food *)calloc(1, sizeof(Food));
-    food->x = SCREEN_WIDTH / 4;
-    food->y = SCREEN_HEIGHT / 4;
+    food->x = screen_width / 4;
+    food->y = screen_height / 4;
 
     game->snake = snake;
     game->food = food;
@@ -62,29 +62,29 @@ void restartGame(Game *game)
 void createBorder(Game *game)
 {
     Wall *border = calloc(1, sizeof(Wall));
-    border->numOfLedges = 2 * SCREEN_WIDTH / SIZE + 2* SCREEN_HEIGHT / SIZE;
+    border->numOfLedges = 2 * screen_width / block_size + 2* screen_height / block_size;
     border->wall = calloc(border->numOfLedges, sizeof(Ledge));
 
-    int nx = SCREEN_WIDTH / SIZE;
+    int nx = screen_width / block_size;
     for (unsigned int i = 0; i < nx; ++i)  
     {
         // Top side
-        border->wall[2*i].x = i * SIZE;      
+        border->wall[2*i].x = i * block_size;      
         border->wall[2*i].y = 0;
         // Bottom side
-        border->wall[2*i + 1].x = i * SIZE;  
-        border->wall[2*i + 1].y = SCREEN_HEIGHT - SIZE;
+        border->wall[2*i + 1].x = i * block_size;  
+        border->wall[2*i + 1].y = screen_height - block_size;
     }
 
-    int ny = SCREEN_HEIGHT / SIZE;
+    int ny = screen_height / block_size;
     for (unsigned int i = 0; i < ny; ++i)
     {
         // Left side
         border->wall[2*nx + 2*i].x = 0; 
-        border->wall[2*nx + 2*i].y = i * SIZE;
+        border->wall[2*nx + 2*i].y = i * block_size;
         // Right side
-        border->wall[2*nx + 2*i + 1].x = SCREEN_WIDTH - SIZE; 
-        border->wall[2*nx + 2*i + 1].y = i * SIZE;
+        border->wall[2*nx + 2*i + 1].x = screen_width - block_size; 
+        border->wall[2*nx + 2*i + 1].y = i * block_size;
     }
 
     game->border = border;
@@ -180,7 +180,7 @@ void createPauseMenu(Game *game)
     // Assign menu item into the game instance
     menu->mBox = mBox;
     menu->buttons = buttons;
-    game->menu = menu;*/
+    game->menu = menu;
 
     // Amount of buttons
     int nButtons = 3;
@@ -232,32 +232,23 @@ void createPauseMenu(Game *game)
     pausemenu->buttons = buttons;
     pausemenu->menuState = PLAY;
 
-    SDL_Color colors[NCOLORS] = {
-        COLOR_FONT,
-        COLOR_ACTIVE,
-        COLOR_INACTIVE,
-        COLOR_BG
-    };
-
-    SDL_SetPaletteColors(pausemenu->menuButtonColors,
-    colors, 0, NCOLORS);
-    
     //printf("Color1 %d", pausemenu->menuButtonColors->colors[0].r);
 
     game->menu = pausemenu;
-}
+    */
 
-void destroyPauseMenu(Game *game)
-{
-    Menu *menu = game->menu;
-    
-    free(menu->mBox->title);
-    free(menu->mBox->message);
-    free(menu->buttons[0].text);
-    free(menu->buttons[1].text);
-    free(menu->buttons[2].text);
-    free(menu->buttons);
-    free(menu);
+    unsigned int n_items = sizeof(pause_menu_items) / sizeof(MenuItem);
+
+    for (unsigned int i = 0; i < n_items; i++)
+    {
+        MenuItem *curr = &pause_menu_items[i % n_items];
+        MenuItem *next = &pause_menu_items[(i + 1) % n_items];
+
+        curr->next = next;
+        next->prev = curr;
+    }
+
+    active_menu_item = &pause_menu_items[0];
 }
 
 void destroyGame(Game *game)
@@ -267,9 +258,6 @@ void destroyGame(Game *game)
 
     // Free memory used by wall
     destroyBorder(game);
-    
-    // Free memory used by menu
-    destroyPauseMenu(game);
 }
 
 int collision(int x1, int y1, int s1, int x2, int y2, int s2)
@@ -289,37 +277,36 @@ void moveSnake(Game *game)
 
     // Move snake's head
     if (snake->dir == UP) {
-        snake->y = (SCREEN_HEIGHT + snake->y - SIZE) % SCREEN_HEIGHT;
+        snake->y = (screen_height + snake->y - block_size) % screen_height;
     } else if (snake->dir == DOWN) {
-        snake->y = (snake->y + SIZE) % SCREEN_HEIGHT;
+        snake->y = (snake->y + block_size) % screen_height;
     } else if (snake->dir == LEFT) {
-        snake->x = (SCREEN_WIDTH + snake->x - SIZE) % SCREEN_WIDTH;
+        snake->x = (screen_width + snake->x - block_size) % screen_width;
     } else {
-        snake->x = (snake->x + SIZE) % SCREEN_WIDTH;
+        snake->x = (snake->x + block_size) % screen_width;
     }
 
     // Check if head collides with tail
     for (Tail *tail = snake->next; tail != NULL; tail = tail->next)
     {
-        int eatTail = collision(snake->x, snake->y, SIZE, 
-                                tail->x, tail->y, SIZE);
+        int eatTail = collision(snake->x, snake->y, block_size, 
+                                tail->x, tail->y, block_size);
         if (eatTail) {
             game->gameState = GAME_OVER;
         }
     }
 
     // Check if head collides with border
-    if (game->useWall) {
+    if (use_wall) {
         for (unsigned int i = 0; i < game->border->numOfLedges; ++i)
         {
-            int hitWall = collision(snake->x, snake->y, SIZE, 
-                                    wall[i].x, wall[i].y, SIZE);
+            int hitWall = collision(snake->x, snake->y, block_size, 
+                                    wall[i].x, wall[i].y, block_size);
             if (hitWall) {
                 game->gameState = GAME_OVER;
             }
         }
     }
-
 
     // Move each tail object by following the former objects
     for (Tail *tail = snake->next; tail != NULL; tail = tail->next)
@@ -335,8 +322,8 @@ void moveSnake(Game *game)
     }
 
     // Check can snake eat the food
-    int canEat = collision(snake->x, snake->y, SIZE, 
-                            food->x, food->y, SIZE);
+    int canEat = collision(snake->x, snake->y, block_size, 
+                            food->x, food->y, block_size);
     if (canEat) {
         // Add new tail at the end of the snake
         Tail *new = (Tail *)calloc(1, sizeof(Tail));  
@@ -352,8 +339,8 @@ void moveSnake(Game *game)
             snake->last = new;
         }
 
-        food->x = (snake->x + 4 * SIZE) % (SCREEN_WIDTH - 2*SIZE) + SIZE; 
-        food->y = (snake->y + 4 * SIZE) % (SCREEN_HEIGHT - 2*SIZE) + SIZE;
+        food->x = (snake->x + 4 * block_size) % (screen_width - 2*block_size) + block_size; 
+        food->y = (snake->y + 4 * block_size) % (screen_height - 2*block_size) + block_size;
     }
 
 }
@@ -362,7 +349,6 @@ void processEvents(Game *game)
 {
     SDL_Event event;
     Snake *snake = game->snake;
-    Menu *menu = game->menu;
     
     while (SDL_PollEvent(&event))
     {
@@ -438,36 +424,33 @@ void processEvents(Game *game)
                 {
                 case SDLK_UP:
                 {
-                    // If the menu goes below bounds, return to bottom
-                    menu->menuState = (STATES_LENGTH + (menu->menuState - 1)) % STATES_LENGTH;
+                    active_menu_item = active_menu_item->prev;
                     break;
                 }
                 case SDLK_DOWN:
                 {
-                    // If the menu goes above bounds, return to top
-                    menu->menuState = (menu->menuState + 1) % STATES_LENGTH;
+                    active_menu_item = active_menu_item->next;
                     break;
                 }
                 case SDLK_RETURN:
                 {
-                    switch(menu->menuState)
+                    switch(active_menu_item->id) {
+                    case PLAY: 
                     {
-                    case PLAY:
-                    {
-                        if (game->gameState == GAME_OVER) {
-                            restartGame(game);
+                        if (game->gameState != GAME_PAUSED) {
+                                restartGame(game);
                         }
-                        game->gameState = GAME_RUNNING;
+                        game->gameState = GAME_RUNNING; 
                         break;
                     }
                     case QUIT:
                     {
-                        game->gameState = GAME_EXIT;
+                        game->gameState = GAME_EXIT; 
                         break;
-                    }
-                    case TOGGLE_WALL:
+                    } 
+                    case USE_WALL: 
                     {
-                        game->useWall = !game->useWall;
+                        *(uint8_t *)active_menu_item->item = ~*(uint8_t *)active_menu_item->item & 1; 
                         break;
                     }
                     }
@@ -506,65 +489,40 @@ void processEvents(Game *game)
     */
 }
 
-SDL_Surface *createTextSurface(Game *game, const char *str, enum menuStatus status)
-{
-    SDL_Color *colors = game->menu->menuButtonColors->colors;
-
-    if (status == game->menu->menuState)
-    {
-        return TTF_RenderText_Shaded(game->gFont, str, colors[0], colors[1]);
-    } else {
-        return TTF_RenderText_Shaded(game->gFont, str, colors[0], colors[2]);
-    }
-}
-
-
-SDL_Texture *createMenuTextures(Game *game, const char **str)
-{
-    if (game->gameState)
-    {
-        
-    }
-}
-
 void renderMenu(Game *game)
 {
     SDL_Renderer *renderer = game->renderer;
-    int margin_bottom = 80;
-    int spacing = 40;
-    Menu *menu = game->menu;
-
     SDL_SetRenderDrawColor(renderer, 50, 50, 50, 50);
+    uint16_t y_pos = menu_y_offset;
+    int n_items = sizeof(pause_menu_items) / sizeof(MenuItem);
 
-    SDL_Surface *playButtonSurface = createTextSurface(game, "PLAY", PLAY);
-    SDL_Surface *quitButtonSurface = createTextSurface(game, "QUIT", QUIT);
-    SDL_Surface *wallButtonSurface = createTextSurface(game, "TOGGLE WALL", TOGGLE_WALL);
+    for (unsigned int i = 0; i < n_items; i++ )
+    {
+        MenuItem *menu_item = &pause_menu_items[i];
+        SDL_Surface *text_surface;
+        int w, h;
 
-    int w = MAX(playButtonSurface->w, MAX(quitButtonSurface->w, wallButtonSurface->w));
-    int h = MAX(playButtonSurface->h, MAX(quitButtonSurface->h, wallButtonSurface->h));
+        //printf("Rendering button %s\n", menu_item->text);
 
-    SDL_Texture *playButtonTexture = SDL_CreateTextureFromSurface(game->renderer, playButtonSurface);
-    SDL_Texture *quitButtonTexture = SDL_CreateTextureFromSurface(game->renderer, quitButtonSurface);
-    SDL_Texture *wallButtonTexture = SDL_CreateTextureFromSurface(game->renderer, wallButtonSurface);
+        if (active_menu_item->id == menu_item->id) {
+            text_surface = TTF_RenderUTF8_Shaded(
+                game->gFont, menu_item->text, colors[color_font], colors[color_active]);
+        } else {
+            text_surface = TTF_RenderUTF8_Solid(game->gFont, menu_item->text, colors[color_font]);
+        }
 
-    // Play button
-    unsigned int y_pos = margin_bottom;
-    SDL_Rect playBox = { (SCREEN_WIDTH - w) / 2, y_pos, w, h };
-    SDL_RenderCopy(renderer, playButtonTexture, NULL, &playBox);
+        w = text_surface->w;
+        h = text_surface->h;
 
-    // Quit Button
-    y_pos += h + spacing;
-    SDL_Rect quitBox = { (SCREEN_WIDTH - w) / 2, y_pos , w, h };
-    SDL_RenderCopy(renderer, quitButtonTexture, NULL, &quitBox);
+        SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, text_surface);
+        SDL_Rect text_rect = { (screen_width / 2), y_pos, w, h};
 
-    // Toggle Wall button
-    y_pos += h + spacing;
-    SDL_Rect wallBox = { (SCREEN_WIDTH - w) / 2, y_pos , w, h };
-    SDL_RenderCopy(renderer, wallButtonTexture, NULL, &wallBox);
+        SDL_RenderCopy(renderer, texture, NULL, &text_rect);
 
-    SDL_FreeSurface(playButtonSurface);
-    SDL_FreeSurface(quitButtonSurface);
-    SDL_FreeSurface(wallButtonSurface);
+        SDL_FreeSurface(text_surface);
+
+        y_pos += h + menu_y_spacing;
+    }
 }
 
 void renderGame(Game *game)
@@ -572,29 +530,29 @@ void renderGame(Game *game)
     SDL_Renderer *renderer = game->renderer;
     
     // Draw wall with grey, if it is used
-    if (game->useWall) {
+    if (use_wall) {
         SDL_SetRenderDrawColor(renderer, 100, 100, 100, 0);
         Ledge *wall = game->border->wall;
         for (unsigned int i = 0; i < game->border->numOfLedges; ++i)
         {
-            SDL_Rect ledgeRect = { wall[i].x, wall[i].y, SIZE, SIZE };
+            SDL_Rect ledgeRect = { wall[i].x, wall[i].y, block_size, block_size };
             SDL_RenderFillRect(renderer, &ledgeRect);
         }
     }
 
     // Draw snake with WHITE 
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-    SDL_Rect snakeRect = { game->snake->x, game->snake->y, SIZE, SIZE };
+    SDL_Rect snakeRect = { game->snake->x, game->snake->y, block_size, block_size };
     SDL_RenderFillRect(renderer, &snakeRect);
     for (Tail *tail = game->snake->next; tail != NULL; tail = tail->next)
     {
-        SDL_Rect tailRect = { tail->x, tail->y, SIZE, SIZE };
+        SDL_Rect tailRect = { tail->x, tail->y, block_size, block_size };
         SDL_RenderFillRect(renderer, &tailRect);
     }
 
     // Draw food with blue
     SDL_SetRenderDrawColor(renderer, 0, 50, 120, 0);
-    SDL_Rect food = { game->food->x, game->food->y, SIZE, SIZE };
+    SDL_Rect food = { game->food->x, game->food->y, block_size, block_size };
     SDL_RenderFillRect(renderer, &food);
 }
 
@@ -645,8 +603,8 @@ int main( int argc, char *argv[] )
     window = SDL_CreateWindow("Game Window",            // Window title
                             SDL_WINDOWPOS_UNDEFINED,    // Initial x position
                             SDL_WINDOWPOS_UNDEFINED,    // Initial y position
-                            SCREEN_WIDTH,               // Width, in pixels
-                            SCREEN_HEIGHT,              // Height, in pixels
+                            screen_width,               // Width, in pixels
+                            screen_height,              // Height, in pixels
                             0);                         // flags
 
     renderer = SDL_CreateRenderer(window, 

@@ -1,25 +1,76 @@
 #ifndef SNAKE_H_
 #define SNAKE_H_
 
-#define SCREEN_WIDTH 640
-#define SCREEN_HEIGHT 480
-#define SIZE 20
-#define LABEL_TEXTLEN 20
-
-#define MENU_FONT "DroidSans.ttf"
-#define MENU_FONT_SIZE 15
-#define FONT_OUTLINE 30
-
-// Colors
-#define NCOLORS 4
-#define COLOR_FONT {250, 250, 250, 0}
-#define COLOR_ACTIVE {200, 200, 200, 100}
-#define COLOR_INACTIVE {100, 100, 100, 100}
-#define COLOR_BG {25,25,25,100}
-
+#define extern
+#define INIT(...) __VA_ARGS__
 
 #define MIN(x,y) ((x < y) ? x : y)
 #define MAX(x,y) ((x < y) ? y : x)
+
+//-------------------------------------
+// SETTINGS
+//-------------------------------------
+
+extern uint8_t use_wall;
+
+int screen_width INIT(= 640);
+int screen_height INIT(= 400);
+
+int block_size INIT(= 20);
+
+char *font INIT(= "DroidSans.ttf");
+int font_size INIT(= 15);
+
+//-------------------------------------
+// COLORS
+//-------------------------------------
+
+static SDL_Color colors[] INIT(= {
+    {250, 250, 250, 0},     // Font color
+    {200, 200, 200, 100},   // Active color
+    {25, 25, 25, 100}       
+});
+
+enum color_code {
+    color_font = 0,
+    color_active,
+    color_bg
+};
+
+//--------------------------------
+// MENU
+//--------------------------------
+
+static uint16_t menu_y_offset INIT(= 80);
+static uint16_t menu_y_spacing INIT(= 40);
+
+enum menu_id {
+    PLAY,
+    USE_WALL,
+    QUIT
+};
+
+typedef struct MenuItem MenuItem;
+struct MenuItem {
+    int id;
+    void *item;
+    char *text;
+    MenuItem *next;
+    MenuItem *prev;
+};
+
+static MenuItem pause_menu_items[] INIT(= {
+    {.id = PLAY, .text = "PLAY"},
+    {.id = USE_WALL, .text = "TOGGLE WALL", .item = &use_wall},
+    {.id = QUIT, .text= "QUIT GAME"}
+});
+
+extern MenuItem *active_menu_item;
+
+
+//----------------------------------------
+// GAME
+//----------------------------------------
 
 enum direction {
     UP,
@@ -39,24 +90,12 @@ enum gameStatus {
     GAME_TOGGLE_WALL
 };
 
-enum menuStatus {
-    PLAY,
-    QUIT,
-    TOGGLE_WALL,
-    STATES_LENGTH
-};
-
-enum menuButtonAction {
-    PAUSE_MENU,
-    START_MENU,
-    GAME_OVER_MENU
-};
-
+typedef struct Tail Tail;
 struct Tail {
     int x, y;
-    struct Tail *next;
+    Tail *next;
 };
-typedef struct Tail Tail;
+
 
 typedef struct {
     int x, y;
@@ -78,20 +117,12 @@ typedef struct {
 } Wall;
 
 typedef struct {
-    SDL_MessageBoxData *mBox;
-    SDL_MessageBoxButtonData *buttons;
-    enum menuStatus menuState;
-    SDL_Palette *menuButtonColors;
-} Menu;
-
-typedef struct {
     Snake *snake;
     Food *food;
     Wall *border;
     TTF_Font *gFont;
     SDL_Renderer *renderer;
     SDL_Window *window;
-    Menu *menu;
     enum gameStatus gameState;
     int exitStatus, useWall, gamespeed;
 } Game;
