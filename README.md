@@ -6,7 +6,6 @@ SDL2 based on Snake game. Work in progress...
 # TODO
 
 * Game mechanics
-- [] Better algorithm for food placing
 - [] In-game settings for gamespeed, save game
 - [] Config file
 - [] Separate menus: start menu, gameover menu

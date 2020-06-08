@@ -2,6 +2,7 @@
 #include <SDL2/SDL_ttf.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "snake.h"
 
@@ -15,8 +16,22 @@ int loadFont(Game *game)
         printf( "Failed to load lazy font! SDL_ttf Error: %s\n", TTF_GetError() );
         return -1;
     }
-    
     return 0;
+}
+
+int setBlock(Game *game, int x, int y, uint8_t value)
+{
+    int nx = x / block_size;
+    int ny = y / block_size;
+    game->block_statuses[nx + (screen_width / block_size) * ny] = value;
+    return value;
+}
+
+int getBlock(Game *game, int x, int y)
+{
+    int nx = x / block_size;
+    int ny = y / block_size;
+    return game->block_statuses[nx + (screen_width / block_size) * ny];
 }
 
 void loadGameObjects(Game *game)
@@ -33,6 +48,10 @@ void loadGameObjects(Game *game)
     Food *food = (Food *)calloc(1, sizeof(Food));
     food->x = screen_width / 4;
     food->y = screen_height / 4;
+
+    // Reserve the board blocks for snake and food
+    setBlock(game, snake->x, snake->y, SNAKE_BLOCK);
+    setBlock(game, food->x, food->y, FOOD_BLOCK);
 
     game->snake = snake;
     game->food = food;
@@ -51,6 +70,19 @@ void destroyGameObjects(Game *game)
 
     // Destroy food
     free(game->food);
+
+    // Reset blocks
+    for (int y = 0; y < screen_height; y += block_size) 
+    {
+        for (int x = 0; x < screen_width; x += block_size)
+        {
+            uint8_t block = getBlock(game, x, y);
+            if (block == SNAKE_BLOCK || block == FOOD_BLOCK
+                    || (use_wall && block == WALL_BLOCK)) {
+                setBlock(game, x, y, FREE_BLOCK);
+            }
+        }
+    }
 }
 
 void restartGame(Game *game)
@@ -61,12 +93,14 @@ void restartGame(Game *game)
 
 void createBorder(Game *game)
 {
+    int nx = screen_width / block_size;
+    int ny = screen_height / block_size;
     Wall *border = calloc(1, sizeof(Wall));
-    border->numOfLedges = 2 * screen_width / block_size + 2* screen_height / block_size;
+    // n = 2nx + 2ny - overlapping blocks on corners
+    border->numOfLedges = 2 * nx + 2* ny - 4;
     border->wall = calloc(border->numOfLedges, sizeof(Ledge));
 
-    int nx = screen_width / block_size;
-    for (unsigned int i = 0; i < nx; ++i)  
+    for (unsigned int i = 0; i < nx; i++)  
     {
         // Top side
         border->wall[2*i].x = i * block_size;      
@@ -75,18 +109,15 @@ void createBorder(Game *game)
         border->wall[2*i + 1].x = i * block_size;  
         border->wall[2*i + 1].y = screen_height - block_size;
     }
-
-    int ny = screen_height / block_size;
-    for (unsigned int i = 0; i < ny; ++i)
+    for (unsigned int i = 1; i < ny - 1; i++)
     {
         // Left side
-        border->wall[2*nx + 2*i].x = 0; 
-        border->wall[2*nx + 2*i].y = i * block_size;
+        border->wall[2*nx + 2*i - 2].x = 0; 
+        border->wall[2*nx + 2*i - 2].y = i * block_size;
         // Right side
-        border->wall[2*nx + 2*i + 1].x = screen_width - block_size; 
-        border->wall[2*nx + 2*i + 1].y = i * block_size;
+        border->wall[2*nx + 2*i - 2 + 1].x = screen_width - block_size; 
+        border->wall[2*nx + 2*i - 2 + 1].y = i * block_size;
     }
-
     game->border = border;
 }
 
@@ -94,6 +125,31 @@ void destroyBorder(Game *game)
 {
     free(game->border->wall);
     free(game->border);
+}
+
+// A function for setting border blocks
+void setBorderBlocks(Game *game, uint8_t value)
+{
+    Ledge *wall = game->border->wall;
+    for (int i = 0; i < game->border->numOfLedges; i++)
+    {
+        setBlock(game, wall[i].x, wall[i].y, value);
+    }
+    // Move food inside walls if walls are enabled 
+    if (use_wall) {
+        // X-coords 
+        if (game->food->x == 0) {
+            game->food->x += block_size;
+        } else if (game->food->x == (screen_width - block_size)) {
+            game->food->x -= block_size;
+        }
+        // Y-coords
+        if (game->food->y == 0) {
+            game->food->y += block_size;
+        } else if (game->food->y == (screen_height - block_size)) {
+            game->food->y -= block_size;
+        }
+    }
 }
 
 void createPauseMenu(Game *game)
@@ -258,12 +314,98 @@ void destroyGame(Game *game)
 
     // Free memory used by wall
     destroyBorder(game);
+
+    // Free status blocks
+    free(game->block_statuses);
 }
 
 int collision(int x1, int y1, int s1, int x2, int y2, int s2)
 {
     return (x1 + s1 > x2 && x1 < x2 + s2 &&
             y1 + s1 > y2 && y1 < y2 + s2);
+}
+
+int collisionWithSnake(Game *game, int x, int y, int s)
+{
+    Snake *snake = game->snake;
+
+    // Head collision
+    if (collision(x, y, s, snake->x, snake->y, block_size)) 
+    {
+        return 1;
+    }
+
+    // Tail collision
+    for (Tail *tail = snake->next; tail != NULL;  tail = tail->next)
+    {
+        if (collision(x, y, s, tail->x, tail->y, block_size))
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int getFreeBlocks(Game *game, int *x_list, int *y_list)
+{    
+    int i = 0;
+    for (int y = 0; y < screen_height; y += block_size)
+    {
+        for (int x = 0; x < screen_width; x += block_size)
+        {
+            if (getBlock(game, x, y) == FREE_BLOCK) {
+                x_list[i] = x;
+                y_list[i] = y;
+                //printf("Free found (%d, %d)\n", x_list[i], y_list[i]);
+                i++;
+            }
+        }
+    }
+    return i;
+}
+
+int calculateDistance(int x0, int y0, int x1, int y1)
+{
+    return abs(x1 - x0) + abs(y1 - y0);
+}
+
+int replaceFood(Game *game)
+{
+    Food *food = game->food;
+    Snake *snake = game->snake;
+    Ledge *wall = game->border->wall;
+
+    int x_list[(screen_width * screen_height) / (block_size * block_size)];
+    int y_list[(screen_width * screen_height) / (block_size * block_size)];
+    int n = getFreeBlocks(game, x_list, y_list);
+
+    // Place new food at least 10 steps away
+    int distance_threshold = 10 * block_size; 
+    int best_distance = 0;
+    int best = 0;
+
+    unsigned int i = 0;
+    while(i < n)
+    {
+        int j = random() % n;
+        int d = calculateDistance(food->x, food->y, x_list[j], y_list[j]);
+        if (d > best_distance)
+        {
+            best_distance = d;
+            best = j;
+        }
+        if (d > distance_threshold)
+        {
+            break;
+        }
+        i++;
+    }
+
+    food->x = x_list[best];
+    food->y = y_list[best];
+    
+    //printf("Food replaced to (%d,%d), d_threshold %d\n", food->x, food->y, distance_threshold);
+    return 0;
 }
 
 void moveSnake(Game *game)
@@ -285,6 +427,7 @@ void moveSnake(Game *game)
     } else {
         snake->x = (snake->x + block_size) % screen_width;
     }
+    setBlock(game, snake->x, snake->y, SNAKE_BLOCK);
 
     // Check if head collides with tail
     for (Tail *tail = snake->next; tail != NULL; tail = tail->next)
@@ -311,6 +454,10 @@ void moveSnake(Game *game)
     // Move each tail object by following the former objects
     for (Tail *tail = snake->next; tail != NULL; tail = tail->next)
     {
+        if (tail->next == NULL) {
+            setBlock(game, tail->x, tail->y, FREE_BLOCK);
+        }
+        
         int temp_x = tail->x;
         int temp_y = tail->y;
 
@@ -339,10 +486,14 @@ void moveSnake(Game *game)
             snake->last = new;
         }
 
-        food->x = (snake->x + 4 * block_size) % (screen_width - 2*block_size) + block_size; 
-        food->y = (snake->y + 4 * block_size) % (screen_height - 2*block_size) + block_size;
+        //food->x = (snake->x + 4 * block_size) % (screen_width - 2*block_size) + block_size; 
+        //food->y = (snake->y + 4 * block_size) % (screen_height - 2*block_size) + block_size;
+        if (replaceFood(game))
+        {
+            printf("Could not replace food. Exiting. \n");
+            game->gameState = GAME_EXIT;
+        }
     }
-
 }
 
 void processEvents(Game *game)
@@ -414,7 +565,7 @@ void processEvents(Game *game)
                     game->gameState = GAME_PAUSED;
                     break;
                 }
-                }
+                } break;
             }
             case GAME_NEW:
             case GAME_OVER:
@@ -450,7 +601,13 @@ void processEvents(Game *game)
                     } 
                     case USE_WALL: 
                     {
-                        *(uint8_t *)active_menu_item->item = ~*(uint8_t *)active_menu_item->item & 1; 
+                        if (use_wall) {
+                            use_wall = FALSE;
+                            setBorderBlocks(game, FREE_BLOCK);
+                        } else {
+                            use_wall = TRUE;
+                            setBorderBlocks(game, WALL_BLOCK);
+                        }
                         break;
                     }
                     }
@@ -508,14 +665,16 @@ void renderMenu(Game *game)
             text_surface = TTF_RenderUTF8_Shaded(
                 game->gFont, menu_item->text, colors[color_font], colors[color_active]);
         } else {
-            text_surface = TTF_RenderUTF8_Solid(game->gFont, menu_item->text, colors[color_font]);
+            text_surface = TTF_RenderUTF8_Solid(
+                game->gFont, menu_item->text, colors[color_font]);
         }
 
         w = text_surface->w;
         h = text_surface->h;
 
         SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, text_surface);
-        SDL_Rect text_rect = { (screen_width / 2), y_pos, w, h};
+        SDL_Rect text_rect = { 
+            (screen_width / 2) - 5*(strlen(menu_item->text)), y_pos, w, h};
 
         SDL_RenderCopy(renderer, texture, NULL, &text_rect);
 
@@ -611,18 +770,23 @@ int main( int argc, char *argv[] )
                                 -1, 
                                 SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC );
 
-    
+    // Init random number generator
+    srand(time(NULL));
+
     game.renderer = renderer;
     game.window = window;
     game.gameState = GAME_NEW;
-    game.exitStatus = 0;
-    game.useWall = 0;
+    game.block_statuses = malloc(
+        (screen_width * screen_height) / (block_size * block_size));
+    memset(game.block_statuses, FREE_BLOCK, 
+        (screen_width * screen_height) / (block_size * block_size));
 
     loadFont(&game);
     createPauseMenu(&game);
     loadGameObjects(&game);
     createBorder(&game);
-    loadGameObjects(&game);
+
+    game.game_speed = 100 / 1;
 
     // Event loop
     while(game.gameState != GAME_EXIT) 
@@ -639,7 +803,7 @@ int main( int argc, char *argv[] )
         doRender(&game);
 
         // The time for the game step
-        SDL_Delay(100);
+        SDL_Delay(game.game_speed);
     }
     
     destroyGame(&game);
@@ -653,7 +817,6 @@ int main( int argc, char *argv[] )
 
     TTF_Quit();
     SDL_Quit();
-    
 
     return 0;
 }

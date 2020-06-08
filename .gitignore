@@ -1,11 +1,11 @@
-
 # VSCode stuff
 .vscode*
 
 # executables
 snake
 
-
 # Valgrind
-
 vgcore.*
+
+# fonts
+*.ttf
