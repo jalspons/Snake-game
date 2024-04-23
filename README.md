@@ -3,6 +3,19 @@
 SDL2 based on Snake game. Work in progress...
 
 
+# Build
+
+```bash
+meson setup build
+cd build
+meson compile -C build
+```
+
+then run (in build)
+
+`./snake`
+
+
 # TODO
 
 * Game mechanics
@@ -23,5 +36,5 @@ SDL2 based on Snake game. Work in progress...
 - [] Background
 
 * Development
-- [] Modularizing codebase (and dynamic linking)
+- [] Modularizing codebase
 - [] Test methods
